@@ -74,6 +74,42 @@ def read_array(archive, name):
     return image
 
 
+def import_restorations(store, archive, created_key):
+    """Copy scratch-restoration records carried inside a project archive.
+
+    Returns a mapping from archived record ids to the newly stored ids.
+    """
+    directory = store.directory(created_key) / 'restorations'
+    directory.mkdir(exist_ok=True)
+    mapping = {}
+    from . import model
+    for name in archive.namelist():
+        parts = PurePosixPath(name).parts
+        if len(parts) != 3 or parts[0] != 'restorations' or parts[2] != 'restoration.json':
+            continue
+        record = read_json(archive, name)
+        try:
+            v.identifier(record.get('id'))
+        except v.Invalid:
+            continue
+        payload = archive.read('restorations/' + record['id'] + '/image.npz')
+        with np.load(io.BytesIO(payload), allow_pickle=False) as data:
+            image = data['image'].copy()
+        if image.dtype != np.float32 or image.ndim != 3 or image.shape[2] != 3:
+            continue
+        if not np.isfinite(image).all() or image.min() < 0 or image.max() > 1:
+            continue
+        new_id = model.uid()
+        target = directory / new_id
+        target.mkdir(exist_ok=True)
+        np.savez_compressed(target / 'image.npz', image=image)
+        record['id'] = new_id
+        record['project_id'] = created_key
+        store.write(target / 'restoration.json', record)
+        mapping[parts[1]] = new_id
+    return mapping
+
+
 def import_project(store, assets, raw):
     with open_archive(raw) as archive:
         imported = read_json(archive, 'project.json')
@@ -108,6 +144,13 @@ def import_project(store, assets, raw):
                 for key in ['dark', 'flat']:
                     if current['settings']['calibration'][key]:
                         current['settings']['calibration'][key] = mapping[current['settings']['calibration'][key]]
+            mapping_done = import_restorations(store, archive, created['id'])
+            confirmed = (imported.get('restoration') or {}).get('confirmed')
+            if confirmed:
+                with store.edit(created['id'], store.get(created['id'])['revision'], '关联导入的修复记录') as current:
+                    # A record that could not be restored must not stay
+                    # referenced, otherwise the project points at nothing.
+                    current['restoration']['confirmed'] = mapping_done.get(confirmed)
         except Exception:
             import shutil
             shutil.rmtree(store.directory(created['id']))

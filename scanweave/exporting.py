@@ -51,13 +51,22 @@ def export_image(fields, format, body):
     return float_archive(fields), 'float32-fields.npz', 'application/octet-stream'
 
 
-def project_bundle(project, assets):
+def project_bundle(project, assets, store=None):
     references = {frame['asset'] for frame in project['frames']}
     references.update(frame['mask'] for frame in project['frames'] if frame['mask'])
     calibration = project['settings']['calibration']
     references.update(asset for asset in [calibration['dark'], calibration['flat']] if asset)
     stream = io.BytesIO()
-    manifest = {'format': 'stacklight-project-v1', 'assets': {}}
+    manifest = {'format': 'stacklight-project-v1', 'assets': {}, 'restorations': []}
+    restorations = []
+    if store is not None:
+        directory = store.directory(project['id']) / 'restorations'
+        if directory.exists():
+            for path in sorted(directory.glob('*/restoration.json')):
+                record = store.read(path)
+                payload = path.parent / 'image.npz'
+                if record and payload.exists():
+                    restorations.append((record, payload))
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.writestr('project.json', json_bytes(model.snapshot(project)))
         for asset_id in sorted(references):
@@ -66,6 +75,11 @@ def project_bundle(project, assets):
             archive.writestr('assets/' + asset_id + '.npz', data)
             archive.writestr('assets/' + asset_id + '.json', json_bytes(metadata))
             manifest['assets'][asset_id] = {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+        for record, payload in restorations:
+            data = payload.read_bytes()
+            archive.writestr('restorations/' + record['id'] + '/restoration.json', json_bytes(record))
+            archive.writestr('restorations/' + record['id'] + '/image.npz', data)
+            manifest['restorations'].append({'id': record['id'], 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
         archive.writestr('manifest.json', json_bytes(manifest))
     return stream.getvalue()
 

@@ -130,7 +130,13 @@ class Store:
             restored['redo'] = original['redo'][:-1] if redo else original['redo'] + [source[-1]]
             restored['revision'] = revision + 1
             restored['updated_at'] = v.timestamp()
-            restored['current_result'] = None
+            # Undoing annotation-only edits (scratch marks, settings) must not
+            # discard a composite that is still valid for the pixel pipeline.
+            # snapshots omit current_result, so carry it over explicitly.
+            if model.signature(restored) == model.signature(original):
+                restored['current_result'] = original.get('current_result')
+            else:
+                restored['current_result'] = None
             model.validate(restored)
             self.write(self.directory(key) / 'project.json', restored)
         return self.get(key)

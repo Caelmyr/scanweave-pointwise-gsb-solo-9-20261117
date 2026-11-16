@@ -20,7 +20,7 @@ def frame(asset, name, exposure=1):
 
 def project(name):
     now = v.timestamp()
-    return {'schema': 1, 'id': uid(), 'name': name, 'revision': 0, 'created_at': now, 'updated_at': now, 'notes': '', 'tags': [], 'regions': [], 'frames': [], 'reference': None, 'settings': all_settings({}), 'undo': [], 'redo': [], 'current_result': None, 'archived': False}
+    return {'schema': 1, 'id': uid(), 'name': name, 'revision': 0, 'created_at': now, 'updated_at': now, 'notes': '', 'tags': [], 'regions': [], 'restoration': None, 'frames': [], 'reference': None, 'settings': all_settings({}), 'undo': [], 'redo': [], 'current_result': None, 'archived': False}
 
 
 def find_frame(project, frame_id):
@@ -85,6 +85,8 @@ def validate(project):
     from .regions import validate_region
     for region in v.list_value(project.get('regions', []), '质量检测区域', 32):
         validate_region(region)
+    from .restoration import validate_state
+    project['restoration'] = validate_state(project.get('restoration'))
     v.boolean(project.get('archived', False), '归档')
     return project
 

@@ -90,7 +90,7 @@ class Jobs:
                 data = json_bytes(details)
                 filename = 'alignment.json'
             elif job['kind'] == 'project':
-                data = project_bundle(project, self.assets)
+                data = project_bundle(project, self.assets, self.store)
                 filename = 'stacklight-editable-project.zip'
             elif job['kind'] in ('batch', 'sweep'):
                 from .batch import run_batch

@@ -1,4 +1,5 @@
 import io
+import json
 from flask import Blueprint, request, jsonify, Response, send_file
 from . import validation as v
 from . import model
@@ -59,6 +60,7 @@ def create_api(services):
     jobs = services['jobs']
     profiles = services['profiles']
     regions = services['regions']
+    restoration = services['restoration']
 
     def result_fields(key, result_id=None):
         return results.fields(key, result_id, not bool(result_id))
@@ -486,6 +488,70 @@ def create_api(services):
     @api.get('/projects/<key>/regions')
     def region_list(key):
         return jsonify(store.get(key).get('regions', []))
+
+    @api.get('/projects/<key>/scratch-state')
+    def scratch_state(key):
+        return jsonify(restoration.state(key))
+
+    @api.post('/projects/<key>/scratch-marks')
+    def scratch_marks(key):
+        data = body()
+        return jsonify(restoration.add_strokes(key, v.revision(data), data))
+
+    @api.post('/projects/<key>/scratch-clear')
+    def scratch_clear(key):
+        return jsonify(restoration.clear(key, v.revision(body())))
+
+    @api.post('/projects/<key>/scratch-marks/<stroke_id>/remove')
+    def scratch_stroke_remove(key, stroke_id):
+        return jsonify(restoration.remove_stroke(key, v.revision(body()), stroke_id))
+
+    @api.patch('/projects/<key>/scratch-settings')
+    def scratch_settings(key):
+        data = body()
+        return jsonify(restoration.update_settings(key, v.revision(data), data))
+
+    @api.get('/projects/<key>/scratch-preview')
+    def scratch_preview(key):
+        view = v.choice(request.args.get('view', 'repaired'), '修复预览', ['original', 'marked', 'repaired', 'difference', 'split'])
+        fraction = v.number(request.args.get('fraction', .5), '分屏位置', 0, 1)
+        image, report = restoration.preview(key, view, fraction)
+        response = image_response(image)
+        # ASCII-only header payload so waitress can encode the header.
+        response.headers['X-Scratch-Report'] = json.dumps(report, ensure_ascii=True)
+        return response
+
+    @api.get('/projects/<key>/scratch-report')
+    def scratch_report(key):
+        _, report = restoration.preview(key, 'repaired')
+        return jsonify(report)
+
+    @api.post('/projects/<key>/scratch-restore')
+    def scratch_restore(key):
+        data = body()
+        output = restoration.confirm(key, v.revision(data), data)
+        return jsonify(output), 201
+
+    @api.get('/projects/<key>/scratch-restorations')
+    def scratch_restorations(key):
+        return jsonify(restoration.list(key))
+
+    @api.get('/projects/<key>/scratch-restorations/<restoration_id>/image')
+    def scratch_restoration_image(key, restoration_id):
+        return image_response(restoration.image(key, restoration_id))
+
+    @api.get('/projects/<key>/scratch-restorations/<restoration_id>')
+    def scratch_restoration_detail(key, restoration_id):
+        return jsonify(restoration.record(key, restoration_id))
+
+    @api.post('/projects/<key>/scratch-restorations/<restoration_id>/remove')
+    def scratch_restoration_remove(key, restoration_id):
+        return jsonify(restoration.remove(key, v.revision(body()), restoration_id))
+
+    @api.post('/projects/<key>/scratch-restorations/<restoration_id>/export')
+    def scratch_restoration_export(key, restoration_id):
+        raw, filename, mimetype = restoration.export(key, restoration_id, body())
+        return download(raw, filename, mimetype)
 
     @api.post('/projects/<key>/regions')
     def region_create(key):
