@@ -49,7 +49,7 @@ class Results:
         (directory / 'image.png').write_bytes(png_bytes(fields['image']))
         (directory / 'thumb.jpg').write_bytes(thumbnail(fields['image']))
         for name, field in fields.items():
-            if name in ('image', 'linear', 'before_finishing'):
+            if name in ('image', 'linear', 'before_finishing', 'before_illumination'):
                 continue
             (directory / (name + '.png')).write_bytes(png_bytes(visualization(field, 'heat' if name not in ('valid',) else 'gray')))
         metadata = {'id': result_id, 'project_id': project['id'], 'name': project['name'], 'source_revision': project['revision'], 'source_signature': computed['signature'], 'created_at': v.timestamp(), 'mode': project['settings']['mode'], 'frame_ids': computed['frame_ids'], 'fields': list(fields), 'width': fields['image'].shape[1], 'height': fields['image'].shape[0], 'report': computed['report'], 'statistics': image_report(fields['image'], fields['valid']), 'project': model.snapshot(project)}

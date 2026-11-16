@@ -19,7 +19,7 @@ def result_bundle(fields, metadata, options):
     files = {'composite.png': png_bytes(fields['image'], bits), 'composite.jpg': jpeg_bytes(fields['image'])}
     if auxiliaries:
         for name, field in fields.items():
-            if name in ('image', 'linear', 'before_finishing'):
+            if name in ('image', 'linear', 'before_finishing', 'before_illumination'):
                 continue
             files['auxiliary/' + name + '.png'] = png_bytes(visualization(field, 'heat'))
     if raw:

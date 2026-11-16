@@ -112,6 +112,21 @@ def noisy_sequence(image, count=8, seed=42):
     return result
 
 
+def panorama_illumination(image, index):
+    """Slow lamp/exposure field distinct per segment, as on a moving scanner.
+
+    The spatial part is what a single global gain cannot remove; the per-segment
+    offset below is absorbed by the normal overlap gain and is kept small.
+    """
+    height, width = image.shape[:2]
+    yy, xx = np.indices((height, width), dtype=np.float32)
+    gx = xx / max(width - 1, 1)
+    gy = yy / max(height - 1, 1)
+    field = (.88 + .22 * np.cos((gx - .5 + index * .16) * 2.1) + .07 * np.sin(gy * 2.4 + index * .7)) * (.97 + .03 * index)
+    linear = srgb_decode(image) * np.clip(field, .55, 1.35)[:, :, None]
+    return np.clip(srgb_encode(np.maximum(linear, 0)), 0, 1).astype(np.float32)
+
+
 def create_demo(store, assets, kind):
     spec = next((entry for entry in DEMOS if entry['id'] == kind), None)
     if spec is None:
@@ -135,11 +150,13 @@ def create_demo(store, assets, kind):
             sequence.append((field, 1.))
     else:
         wide = scene(1500, 600)
-        sequence = [(wide[:, x:x + 900].copy(), 1.) for x in [0, 300, 600]]
+        sequence = [(panorama_illumination(wide[:, x:x + 900].copy(), index), 1.) for index, x in enumerate([0, 300, 600])]
     with store.edit(current['id'], 0, '载入合成摄影示范') as project:
         project['settings']['mode'] = spec['mode']
         project['settings']['size'] = 768
         project['notes'] = spec['description'] + ' 所有示范图由本地程序生成，用于复现算法，不冒充实拍照片。'
+        if kind == 'panorama':
+            project['notes'] += ' 三段扫描带各自缓慢的照明落差，可在“补偿前后”中检查纸张背景的过渡。'
         for index, (field, exposure) in enumerate(sequence):
             asset = assets.put(field.astype(np.float32), f'{kind}-{index + 1:02d}.png', {'synthetic': True, 'exif': {'ExposureTime': exposure}})
             frame = model.frame(asset['id'], f'{kind}-{index + 1:02d}', exposure)

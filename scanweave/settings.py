@@ -65,6 +65,9 @@ def panorama(body):
         'levels': v.integer(body.get('levels', 5), '拼接金字塔', 1, 8),
         'feather': v.number(body.get('feather', 40), '羽化宽度', 2, 200),
         'gain': v.boolean(body.get('gain', True), '重叠区域增益补偿'),
+        'illumination': v.choice(body.get('illumination', 'quadratic'), '缓变亮度补偿', ['off', 'planar', 'quadratic']),
+        'illumination_strength': v.number(body.get('illumination_strength', 1), '缓变亮度强度', 0, 1),
+        'illumination_limit': v.number(body.get('illumination_limit', 1), '缓变亮度上限EV', .05, 2),
         'crop': v.choice(body.get('crop', 'bounds'), '拼接裁切', ['bounds', 'largest_rectangle', 'none']),
         'max_edge': v.integer(body.get('max_edge', 3072), '拼接画布长边限制', 512, 4096),
     }

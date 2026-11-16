@@ -11,6 +11,7 @@ from .preparation import prepare
 from .quality import rank_frames, stack_preflight, clipping_map, zebra_map, focus_peaking
 from .statistics import image_report, grid_statistics
 from .comparison import compare, difference_image, split_view, checker_compare, registration_overlay, blink_animation, line_profile
+from .illumination import comparison as illumination_comparison
 from .charts import histogram_chart, waveform, vectorscope
 from .tone import tone_map, tone_curve
 from .hdr import response_curve
@@ -550,6 +551,27 @@ def create_api(services):
             raise v.Invalid('边缘区域越界或过小')
         orientation = v.choice(data.get('orientation', 'vertical'), '边缘方向', ['vertical', 'horizontal'])
         return jsonify(edge_spread(fields['image'], bounds, orientation))
+
+    @api.get('/projects/<key>/illumination')
+    def illumination_report(key):
+        _, meta = result_fields(key, request.args.get('result_id'))
+        report = meta.get('report', {}).get('illumination') or {'enabled': False, 'note': '当前结果没有缓变亮度补偿（仅平面拼接模式下可用）。'}
+        return jsonify(report | {'result_id': meta['id'], 'mode': meta['mode']})
+
+    @api.get('/projects/<key>/illumination-image')
+    def illumination_image(key):
+        fields, meta = result_fields(key, request.args.get('result_id'))
+        if 'before_illumination' not in fields:
+            raise v.Invalid('当前结果没有缓变亮度补偿对照；请在平面拼接模式中启用缓变亮度补偿后重新合成')
+        kind = v.choice(request.args.get('kind', 'comparison'), '补偿对照图', ['comparison', 'before', 'after', 'difference'])
+        if kind == 'before':
+            return image_response(fields['before_illumination'])
+        if kind == 'after':
+            return image_response(fields['image'])
+        if kind == 'difference':
+            return image_response(difference_image(fields['image'], fields['before_illumination'], v.number(request.args.get('gain', 4), '差异增益', 1, 32)))
+        fraction = v.number(request.args.get('fraction', .5), '分屏位置', 0, 1)
+        return image_response(illumination_comparison(fields['image'], fields['before_illumination'], fraction))
 
     @api.get('/projects/<key>/export-preflight')
     def encoding_preflight(key):

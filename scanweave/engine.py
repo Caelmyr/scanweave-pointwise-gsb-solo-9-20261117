@@ -43,6 +43,11 @@ def process(project, assets, progress=None, cancelled=None):
     fields['before_finishing'] = fields['image'].copy()
     fields['image'] = finish_image(fields['image'], settings['finishing'])
     fields['image'] = apply_all(fields['image'], settings['local'])
+    if 'before_illumination' in fields:
+        # Keep the no-compensation control on the same finishing/tonal path so
+        # the page comparison isolates the smooth illumination change only.
+        control = finish_image(fields['before_illumination'], settings['finishing'])
+        fields['before_illumination'] = apply_all(control, settings['local'])
     stages['postprocess'] = time.monotonic() - stage_started
     stage_started = time.monotonic()
     crop = None
