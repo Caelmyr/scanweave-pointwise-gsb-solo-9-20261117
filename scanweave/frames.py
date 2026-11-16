@@ -30,7 +30,7 @@ class Frames:
         return {'project': self.store.get(key), 'frame_ids': created}
 
     def update(self, key, revision, frame_id, body):
-        allowed = {'revision', 'name', 'enabled', 'exposure', 'ev', 'weight', 'focus_distance', 'matrix', 'rating', 'label', 'notes'}
+        allowed = {'revision', 'name', 'enabled', 'mirrored', 'exposure', 'ev', 'weight', 'focus_distance', 'matrix', 'rating', 'label', 'notes'}
         if set(body) - allowed:
             raise v.Invalid('未知照片属性')
         with self.store.edit(key, revision, '编辑照片帧') as project:

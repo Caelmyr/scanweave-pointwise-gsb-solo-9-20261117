@@ -7,6 +7,7 @@ from .trails import settings as trails_settings
 from .drizzle import settings as drizzle_settings
 from .local_adjustments import adjustment_spec
 from .workflows import workflows, get_workflow
+from .bleedthrough import settings as bleedthrough_settings
 
 
 def finishing(body):
@@ -87,7 +88,7 @@ def geometry(body):
 
 def all_settings(body):
     body = v.object_value(body, '工程设置')
-    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local'}
+    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local', 'bleedthrough'}
     extensions = [item for item in workflows() if not item.builtin]
     allowed.update(item.settings_section for item in extensions)
     if set(body) - allowed:
@@ -110,6 +111,7 @@ def all_settings(body):
         'calibration': calibration(body.get('calibration', {})),
         'panorama': panorama(body.get('panorama', {})),
         'geometry': geometry(body.get('geometry', {})),
+        'bleedthrough': bleedthrough_settings(body.get('bleedthrough', {})),
     }
     for workflow in extensions:
         section = workflow.settings_section
@@ -127,8 +129,14 @@ def all_settings(body):
 def merge_settings(original, patch):
     patch = v.object_value(patch, '设置更新')
     merged = deepcopy(original)
+    allowed = set(merged)
+    if set(patch) - allowed:
+        raise v.Invalid('存在未知工程设置')
     for key, value in patch.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            unknown = set(value) - set(merged[key])
+            if unknown:
+                raise v.Invalid('存在未知参数：' + key + '.' + next(iter(unknown)))
             merged[key].update(value)
         else:
             merged[key] = value

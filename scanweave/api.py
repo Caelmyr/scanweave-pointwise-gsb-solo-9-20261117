@@ -11,6 +11,7 @@ from .preparation import prepare
 from .quality import rank_frames, stack_preflight, clipping_map, zebra_map, focus_peaking
 from .statistics import image_report, grid_statistics
 from .comparison import compare, difference_image, split_view, checker_compare, registration_overlay, blink_animation, line_profile
+from .bleedthrough import suppress_show_through, settings as bleedthrough_settings
 from .charts import histogram_chart, waveform, vectorscope
 from .tone import tone_map, tone_curve
 from .hdr import response_curve
@@ -21,6 +22,7 @@ from .pyramids import pyramid_energy
 from .batch import batch_plan
 from .workflows import public_workflows
 from .arrays import resize, composite_valid, normalize
+from .settings import merge_settings
 
 
 def body():
@@ -428,7 +430,7 @@ def create_api(services):
     def diagnostic_image(key):
         data = body()
         fields, _ = result_fields(key, data.get('result_id'))
-        kind = v.choice(data.get('kind', 'clipping'), '诊断图', ['clipping', 'zebra', 'peaking', 'valid', 'before_after'])
+        kind = v.choice(data.get('kind', 'clipping'), '诊断图', ['clipping', 'zebra', 'peaking', 'valid', 'before_after', 'bleed_before_after'])
         if kind == 'clipping':
             image = clipping_map(fields['image'])
         elif kind == 'zebra':
@@ -437,6 +439,10 @@ def create_api(services):
             image = focus_peaking(fields['image'])
         elif kind == 'valid':
             image = composite_valid(fields['image'], fields['valid'])
+        elif kind == 'bleed_before_after':
+            if 'front_source' not in fields:
+                raise v.Invalid('当前结果不是双面透印流程，无透印前后对照')
+            image = split_view(fields['front_source'], fields['image'], v.number(data.get('fraction', .5), '分屏位置', 0, 1))
         else:
             image = split_view(fields['before_finishing'], fields['image'], v.number(data.get('fraction', .5), '分屏位置', 0, 1))
         return image_response(image)
@@ -748,5 +754,56 @@ def create_api(services):
     @api.get('/workflows')
     def workflow_catalog():
         return jsonify(public_workflows())
+
+    @api.post('/projects/<key>/bleedthrough/assign')
+    def bleedthrough_assign(key):
+        data = body()
+        front_id = v.identifier(data.get('front'))
+        back_id = v.identifier(data.get('back'))
+        project = store.get(key)
+        model.find_frame(project, front_id)
+        model.find_frame(project, back_id)
+        if front_id == back_id:
+            raise v.Invalid('正面与反面必须是两张不同的照片')
+        with store.edit(key, v.revision(data), '指定双面透印正反面') as current:
+            model.find_frame(current, front_id)
+            model.find_frame(current, back_id)
+            current['reference'] = front_id
+            for frame in current['frames']:
+                frame['mirrored'] = frame['id'] == back_id
+                frame['enabled'] = frame['id'] in (front_id, back_id)
+            current['settings'] = merge_settings(current['settings'], {'mode': 'bleedthrough'})
+        return jsonify(store.get(key))
+
+    @api.post('/projects/<key>/bleedthrough/preview')
+    def bleedthrough_preview(key):
+        data = body()
+        project = store.get(key)
+        config = bleedthrough_settings(data.get('settings', {}))
+        prepared = prepare(project, assets, True)
+        fields, report = suppress_show_through(prepared, config)
+        kind = v.choice(data.get('view', 'result'), '透印预览', ['result', 'before', 'overlay', 'split', 'checker', 'bleed_map', 'reliable', 'protection', 'back', 'metrics'])
+        fraction = v.number(data.get('fraction', .5), '分屏位置', 0, 1)
+        if kind == 'metrics':
+            return jsonify(report | compare(fields['front_source'], fields['image'], fields['valid'] > .5))
+        if kind == 'result':
+            image = fields['image']
+        elif kind == 'before':
+            image = fields['front_source']
+        elif kind == 'back':
+            image = fields['back_registered']
+        elif kind == 'overlay':
+            image = registration_overlay(fields['front_source'], fields['back_registered'])
+        elif kind == 'split':
+            image = split_view(fields['front_source'], fields['image'], fraction)
+        elif kind == 'checker':
+            image = checker_compare(fields['front_source'], fields['image'])
+        elif kind == 'bleed_map':
+            image = visualization(fields['bleed_map'], 'heat')
+        elif kind == 'reliable':
+            image = visualization(fields['reliable'], 'heat')
+        else:
+            image = visualization(fields['protection'], 'heat')
+        return image_response(image)
 
     return api

@@ -15,7 +15,7 @@ def identity():
 
 
 def frame(asset, name, exposure=1):
-    return {'id': uid(), 'asset': asset, 'name': name, 'enabled': True, 'exposure': exposure, 'ev': 0., 'weight': 1., 'focus_distance': None, 'matrix': identity(), 'mask': None, 'rating': 0, 'label': '', 'notes': ''}
+    return {'id': uid(), 'asset': asset, 'name': name, 'enabled': True, 'exposure': exposure, 'ev': 0., 'weight': 1., 'focus_distance': None, 'matrix': identity(), 'mask': None, 'mirrored': False, 'rating': 0, 'label': '', 'notes': ''}
 
 
 def project(name):
@@ -43,7 +43,7 @@ def snapshot(project):
 
 
 def signature(project):
-    fields = ['id', 'asset', 'enabled', 'exposure', 'ev', 'weight', 'matrix', 'mask']
+    fields = ['id', 'asset', 'enabled', 'mirrored', 'exposure', 'ev', 'weight', 'matrix', 'mask']
     data = {'frames': [{k: f[k] for k in fields} for f in project['frames']], 'reference': project['reference'], 'settings': project['settings']}
     return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
@@ -66,6 +66,7 @@ def validate(project):
         v.sha(f.get('asset'))
         v.text(f.get('name'), '照片名', 180, False)
         v.boolean(f.get('enabled'), '启用照片')
+        f['mirrored'] = v.boolean(f.get('mirrored', False), '水平镜像')
         f['matrix'] = v.matrix(f.get('matrix'))
         v.number(f.get('exposure'), '曝光秒数', .000001, 3600)
         v.number(f.get('ev'), '曝光补偿', -12, 12)

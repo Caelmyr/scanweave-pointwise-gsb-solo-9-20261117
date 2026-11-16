@@ -23,6 +23,9 @@ def prepare(project, assets, aligned=True, progress=None, cancelled=None):
         image = assets.field(frame['asset'])
         image, report = apply_calibration(image, project['settings']['calibration'], assets.field)
         image, lens_valid = correct(image, project['settings']['lens'])
+        if frame.get('mirrored'):
+            image = np.ascontiguousarray(np.flip(image, axis=1))
+            lens_valid = np.ascontiguousarray(np.flip(lens_valid, axis=1))
         image, validity = letterbox(image, width, height)
         lens_valid, _ = letterbox(lens_valid, width, height)
         validity *= lens_valid

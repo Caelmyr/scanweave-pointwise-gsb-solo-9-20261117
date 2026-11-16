@@ -15,6 +15,7 @@ DEMOS = [
     {'id': 'panorama', 'name': '建筑长卷 · 平面拼接', 'mode': 'panorama', 'frames': 3, 'description': '同一平面场景的三块重叠视野，带已知示范变换。'},
     {'id': 'motion', 'name': '移动物体 · 去鬼影', 'mode': 'fusion', 'frames': 5, 'description': '曝光变化叠加移动物体，比较运动抑制与手绘排除遮罩。'},
     {'id': 'trails', 'name': '夜色流光 · 轨迹合成', 'mode': 'trails', 'frames': 8, 'description': '固定背景中的移动亮点，练习亮色合成与渐隐。'},
+    {'id': 'bleedthrough', 'name': '薄纸档案 · 双面透印', 'mode': 'bleedthrough', 'frames': 2, 'description': '正反两面扫描：正面浅字与细线需保留，背面深字透过薄纸形成淡字，练习镜像对齐与透印抑制。'},
 ]
 
 
@@ -112,11 +113,75 @@ def noisy_sequence(image, count=8, seed=42):
     return result
 
 
+def _ink_sheet(width, height, blocks, seed):
+    """生成文字与线条的线性暗度图（0=纸基，1=浓墨）。"""
+    rng = np.random.default_rng(seed)
+    raster = Image.new('L', (width, height), 0)
+    draw = ImageDraw.Draw(raster)
+    try:
+        font_big = ImageFont.truetype('DejaVuSans.ttf', 26)
+        font_small = ImageFont.truetype('DejaVuSans.ttf', 17)
+    except OSError:
+        font_big = font_small = ImageFont.load_default()
+    for index, (top, left, text, faint) in enumerate(blocks):
+        font = font_small if faint else font_big
+        draw.text((left, top), text, fill=95 if faint else 215, font=font)
+        if index % 3 == 0:
+            draw.line((left, top + 34, left + 250, top + 34), fill=70 if faint else 175, width=1)
+        if index % 4 == 1:
+            draw.rectangle((left, top + 42, left + 90, top + 56), outline=80 if faint else 165, width=1)
+    density = np.asarray(raster, np.float32) / 255
+    return blur(density, .7)
+
+
+def two_sided_scan(width=760, height=560, seed=23):
+    """按透射物理合成薄纸正反两面扫描，返回正面与反面 sRGB 图。"""
+    rng = np.random.default_rng(seed)
+    front_blocks = [(60 + i * 62, 70 + (i % 2) * 26, f'ARCHIVE LINE {i + 1:02d}  FRONT', i % 2 == 1) for i in range(7)]
+    back_blocks = [(70 + i * 58, 90 + ((i + 1) % 2) * 22, f'REVERSE ENTRY {i + 1:02d}', False) for i in range(8)]
+    front_ink = _ink_sheet(width, height, front_blocks, seed)
+    back_ink = _ink_sheet(width, height, back_blocks, seed + 1)
+    back_mirror = np.ascontiguousarray(np.flip(back_ink, axis=1))
+    front_mirror = np.ascontiguousarray(np.flip(front_ink, axis=1))
+    # 透印经过纸张扩散，且比自身墨迹淡
+    front_bleed = blur(back_mirror, 2.2) * .55
+    back_bleed = blur(front_mirror, 2.2) * .45
+    paper = np.array([.87, .85, .79], np.float32)
+    grain = rng.normal(0, .004, (height, width, 1)).astype(np.float32)
+    vignette = 1 - .04 * (((np.indices((height, width))[1] / width - .5) ** 2 + (np.indices((height, width))[0] / height - .5) ** 2))[:, :, None]
+
+    def capture(own, bleed, own_strength):
+        linear = paper[None, None, :] * vignette
+        linear *= np.exp(-(own[:, :, None] * own_strength + bleed[:, :, None] * .9))
+        linear += grain
+        return np.clip(srgb_encode(np.clip(linear, 0, 1)), 0, 1).astype(np.float32)
+
+    front = capture(front_ink, front_bleed, .85)
+    back = capture(back_ink, back_bleed, .95)
+    return front, back
+
+
 def create_demo(store, assets, kind):
     spec = next((entry for entry in DEMOS if entry['id'] == kind), None)
     if spec is None:
         raise v.Invalid('示范序列不存在')
     current = store.create(spec['name'])
+    if kind == 'bleedthrough':
+        front, back = two_sided_scan()
+        with store.edit(current['id'], 0, '载入双面透印示范') as project:
+            front_asset = assets.put(front, 'front-side.png', {'synthetic': True, 'scanner': 'synthetic-thin-paper'})
+            back_asset = assets.put(back, 'back-side.png', {'synthetic': True, 'scanner': 'synthetic-thin-paper'})
+            front_frame = model.frame(front_asset['id'], '正面扫描 front-side')
+            back_frame = model.frame(back_asset['id'], '反面扫描 back-side')
+            back_frame['mirrored'] = True
+            back_frame['matrix'][0][2] = .012
+            project['frames'].extend([front_frame, back_frame])
+            project['reference'] = front_frame['id']
+            project['settings']['mode'] = 'bleedthrough'
+            project['settings']['size'] = 768
+            project['settings']['bleedthrough']['strength'] = .8
+            project['notes'] = spec['description'] + ' 合成薄纸透射模型：背面深字经扩散后透到正面；原始正反面素材均不可变。'
+        return store.get(current['id'])
     base = scene(night=kind in ('night', 'trails'))
     if kind in ('exposure', 'motion'):
         sequence = exposures(base, moving=kind == 'motion')

@@ -39,7 +39,7 @@ class Workflow:
 
 
 _REGISTRY = {}
-_RESERVED_SECTIONS = {'size', 'mode', 'local', 'geometry', 'alignment', 'calibration', 'lens', 'flow', 'finishing', 'tone'}
+_RESERVED_SECTIONS = {'size', 'mode', 'local', 'geometry', 'alignment', 'calibration', 'lens', 'flow', 'finishing', 'tone', 'bleedthrough'}
 
 
 def register(workflow):
@@ -172,6 +172,11 @@ def _reference(prepared, settings, progress, cancelled):
     return {'image': prepared['images'][index].copy(), 'valid': prepared['validities'][index].copy()}, {'mode': 'reference', 'note': '参考帧后期处理'}
 
 
+def _bleedthrough(prepared, settings, progress, cancelled):
+    from .bleedthrough import suppress_show_through
+    return suppress_show_through(prepared, settings['bleedthrough'])
+
+
 register(Workflow('fusion', '曝光融合', '多尺度融合曝光互补区域，输出自然的显示图。', 'fusion', _fusion, builtin=True))
 register(Workflow('hdr', 'HDR 辐射合成', '使用有效曝光合并线性辐射，再进行色调映射。', 'hdr', _hdr, minimum_frames=2, builtin=True))
 register(Workflow('focus', '景深堆栈', '按局部清晰度融合不同焦点照片；索引表示帧编号。', 'focus', _focus, builtin=True))
@@ -180,3 +185,4 @@ register(Workflow('panorama', '平面全景拼接', '扩展画布，进行增益
 register(Workflow('trails', '光轨与时序合成', '合并亮色或暗色轨迹，可按帧顺序渐隐。', 'trails', _trails, allow_flow=False, builtin=True))
 register(Workflow('drizzle', '亚像素重建', '工作像素前向投影；需要真实亚像素采样。', 'drizzle', _drizzle, prepare_aligned=False, allow_flow=False, allow_common_crop=False, builtin=True))
 register(Workflow('reference', '参考帧后期', '对参考帧应用校正与后期，建立处理基线。', 'finishing', _reference, builtin=True))
+register(Workflow('bleedthrough', '双面透印抑制', '镜像对齐正反两面扫描，估计并压下背面透印淡字，保留正面浅字、纸张底色与细线；无可靠重叠处不补偿。', 'bleedthrough', _bleedthrough, allow_flow=False, minimum_frames=2, builtin=True))
