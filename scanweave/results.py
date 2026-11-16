@@ -81,6 +81,8 @@ class Results:
         filename = name + ('.jpg' if name == 'thumb' else '.png')
         if not (directory / filename).exists():
             fields, _ = self.fields(key, meta['id'], False)
+            if name == 'thumb':
+                return thumbnail(fields['image'])
             if name == 'linear':
                 from .tone import tone_map
                 image = tone_map(fields['linear'], meta['project']['settings']['tone'])

@@ -34,6 +34,14 @@ def image_response(image):
     return Response(png_bytes(image), mimetype='image/png', headers={'Cache-Control': 'no-store'})
 
 
+def browse_response(data, headers=None):
+    response = Response(data, mimetype='image/jpeg' if data[:3] == b'\xff\xd8\xff' else 'image/png')
+    response.headers['Cache-Control'] = 'no-store'
+    for name, value in (headers or {}).items():
+        response.headers[name] = value
+    return response
+
+
 def byte_image(raw):
     return Response(raw, mimetype='image/png', headers={'Cache-Control': 'no-store'})
 
@@ -59,6 +67,7 @@ def create_api(services):
     jobs = services['jobs']
     profiles = services['profiles']
     regions = services['regions']
+    browsing = services['browsing']
 
     def result_fields(key, result_id=None):
         return results.fields(key, result_id, not bool(result_id))
@@ -308,8 +317,39 @@ def create_api(services):
     def result_image(key, name):
         output = results.image_path(key, name, request.args.get('result_id'))
         if isinstance(output, bytes):
-            return byte_image(output)
+            return browse_response(output)
         return send_file(output, max_age=0)
+
+    @api.get('/projects/<key>/browse/info')
+    def browse_info(key):
+        view = request.args.get('view', 'result')
+        if view not in ('result', 'frame'):
+            raise v.Invalid('浏览视图不存在')
+        info = browsing.describe(key, view, request.args.get('frame_id'), request.args.get('result_id'))
+        return jsonify(browsing.public(info))
+
+    @api.get('/projects/<key>/browse/preview')
+    def browse_preview(key):
+        view = request.args.get('view', 'result')
+        if view not in ('result', 'frame'):
+            raise v.Invalid('浏览视图不存在')
+        data, headers = browsing.preview(key, view, request.args.get('frame_id'), request.args.get('result_id'),
+                                         request.args.get('width'), request.args.get('height'), request.args.get('token'))
+        return browse_response(data, headers)
+
+    @api.get('/projects/<key>/browse/tile')
+    def browse_tile(key):
+        view = request.args.get('view', 'result')
+        if view not in ('result', 'frame'):
+            raise v.Invalid('浏览视图不存在')
+        data, headers = browsing.tile(key, view, request.args.get('frame_id'), request.args.get('result_id'),
+                                      request.args.get('token'), request.args.get('level', 0),
+                                      request.args.get('x', 0), request.args.get('y', 0), request.args.get('size', browsing.tile_size))
+        return browse_response(data, headers)
+
+    @api.get('/browse/cache')
+    def browse_cache():
+        return jsonify(browsing.cache_report())
 
     @api.get('/projects/<key>/integrity')
     def integrity(key):
