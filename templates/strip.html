@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>片坊 · 长幅条带拼接工作台</title>
+<link rel="stylesheet" href="/static/strip.css">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="logo" href="/strip-workbench">片<span>坊</span><small>SCANWEAVE / STRIP LAYOUT</small></a>
+  <div class="section-cap">长幅条带 <span id="sheetCount">0</span></div>
+  <div class="row new-row">
+    <button id="newSheet" class="primary">＋ 新建条带布局</button>
+  </div>
+  <input id="sheetSearch" placeholder="搜索布局名称">
+  <div id="sheetList" class="sheet-list"></div>
+  <div class="sidebar-bottom">
+    <span class="online-dot"></span> 内容驱动的邻接建议
+    <small>疑点需人工确认 · 原始扫描不被改写</small>
+    <a class="back-link" href="/">← 返回扫描整理工作台</a>
+  </div>
+</aside>
+
+<main>
+  <header>
+    <div class="breadcrumb">影像工作室 <i>/</i> <strong>长幅条带拼接</strong></div>
+    <div class="header-actions">
+      <span class="local-badge">LOCAL EDITION</span>
+      <a id="backApp" class="ghost-link" href="/">扫描整理</a>
+    </div>
+  </header>
+
+  <section class="heading">
+    <div>
+      <div class="eyebrow">IMPORT / SUGGEST / CONFIRM</div>
+      <h1 id="sheetTitle">长幅条带拼接工作台</h1>
+      <p id="sheetNotes">导入有重叠的条带，系统按图像内容建议排列与位置；不确定或矛盾处标记疑点由你确认，不会强行拼成看似完整的图。</p>
+    </div>
+    <div class="heading-actions">
+      <select id="axisSelect" title="拼接方向">
+        <option value="vertical">纵向接续（上下）</option>
+        <option value="horizontal">横向接续（左右）</option>
+      </select>
+      <button id="sheetSettings" class="ghost-btn">布局属性 ↗</button>
+    </div>
+  </section>
+
+  <div id="emptyApp" class="empty-app">
+    <div class="frame-symbol">▤</div>
+    <h2>从一组重叠条带开始</h2>
+    <p>新建布局并导入乱序的扫描条带，或选择左侧已有布局继续编辑。</p>
+    <button id="emptyNew" class="primary">新建条带布局</button>
+  </div>
+
+  <div id="workbench" class="workbench" hidden>
+    <section class="canvas-panel panel">
+      <div class="panel-bar">
+        <div class="tabs-inline">
+          <button id="tabLayout" class="selected">整幅布局</button>
+          <button id="tabIssues">疑点 <span id="issueBadge" class="badge">0</span></button>
+          <button id="tabEdges">邻接关系 <span id="edgeBadge" class="badge">0</span></button>
+        </div>
+        <span id="confirmState" class="state">未确认</span>
+      </div>
+
+      <div id="layoutView" class="canvas-stage">
+        <div id="canvasScroll" class="canvas-scroll">
+          <div id="stripCanvas" class="strip-canvas"></div>
+        </div>
+        <div class="zoom-bar">
+          <button id="zoomOut">－</button>
+          <span id="zoomLabel">100%</span>
+          <button id="zoomIn">＋</button>
+          <button id="zoomFit">适应</button>
+        </div>
+        <div class="stage-hint" id="stageHint">拖动条带调整位置；双击条带可旋转 90°</div>
+      </div>
+
+      <div id="issuesView" class="side-panel-view" hidden>
+        <div id="issueList" class="issue-list"></div>
+      </div>
+
+      <div id="edgesView" class="side-panel-view" hidden>
+        <div id="edgeList" class="edge-list"></div>
+      </div>
+
+      <div class="canvas-tools">
+        <div class="row">
+          <button id="analyzeBtn" class="primary">◈ 分析邻接并建议排列</button>
+          <button id="uploadBtn">＋ 导入条带</button>
+          <button id="previewBtn">刷新预览</button>
+        </div>
+        <div class="row">
+          <button id="undoBtn" title="撤销">↶ 撤销</button>
+          <button id="redoBtn" title="重做">↷ 重做</button>
+          <button id="resetBtn">重置手动调整</button>
+          <button id="duplicateBtn">复制布局</button>
+          <button id="confirmBtn">确认布局</button>
+          <button id="exportBtn" class="primary pale">↗ 导出整图</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side-panel panel">
+      <div class="control-title"><span>条带序列</span><span class="small-cap" id="stripCount">0 STRIPS</span></div>
+      <div id="stripList" class="strip-list"></div>
+      <div class="side-footer">
+        <div id="selectionInfo" class="tiny">点击条带查看详情与邻接。</div>
+        <div class="row">
+          <button id="moveUp" class="mini">上移</button>
+          <button id="moveDown" class="mini">下移</button>
+          <button id="rotateSel" class="mini">旋转</button>
+          <button id="removeSel" class="mini danger">移除</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<dialog id="dialog">
+  <div class="dialog-head"><h2 id="dialogTitle"></h2><button id="closeDialog">✕</button></div>
+  <div id="dialogBody"></div>
+</dialog>
+<div id="toast" role="status"></div>
+<input type="file" id="fileInput" multiple hidden accept="image/png,image/jpeg,image/tiff">
+<script src="/static/strip.js"></script>
+</body>
+</html>

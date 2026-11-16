@@ -9,6 +9,8 @@ from .results import Results
 from .jobs import Jobs
 from .profiles import Profiles
 from .regions import Regions
+from .stripstore import StripStore
+from .stripservice import StripService
 from .api import create_api
 from .validation import Invalid, Conflict
 
@@ -23,12 +25,21 @@ def create_app(data_dir=None):
     results = Results(store, assets)
     services = {'store': store, 'assets': assets, 'frames': Frames(store, assets), 'masks': Masks(store, assets), 'results': results, 'jobs': Jobs(store, assets, results), 'profiles': Profiles(store)}
     services['regions'] = Regions(store, assets, results)
+    strip_store = StripStore(store.root)
+    services['strip_store'] = strip_store
+    services['strip_service'] = StripService(strip_store, assets)
     app.extensions.update(services)
     app.register_blueprint(create_api(services))
+    from .stripapi import create_strip_api
+    app.register_blueprint(create_strip_api(services['strip_service'], assets))
 
     @app.get('/')
     def index():
         return render_template('index.html')
+
+    @app.get('/strip-workbench')
+    def strip_workbench():
+        return render_template('strip.html')
 
     @app.errorhandler(Conflict)
     def conflict(error):
