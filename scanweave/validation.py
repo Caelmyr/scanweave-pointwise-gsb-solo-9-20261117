@@ -180,6 +180,10 @@ def denoise_settings(body):
         'iterations': integer(body.get('iterations', 2), '剔除轮数', 1, 5),
         'trim': number(body.get('trim', .15), '截尾比例', 0, .4),
         'linear': boolean(body.get('linear', True), '线性空间降噪'),
+        'detail_preserve': number(body.get('detail_preserve', .5), '细节保留', 0, 1),
+        'detail_radius': number(body.get('detail_radius', 1.6), '细节判定半径', .5, 6),
+        'detail_threshold': number(body.get('detail_threshold', 2.2), '细节噪声阈值', .8, 6),
+        'detail_consistency': number(body.get('detail_consistency', .6), '跨帧一致性要求', .3, .95),
     }
 
 

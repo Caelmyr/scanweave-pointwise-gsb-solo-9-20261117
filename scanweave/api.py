@@ -428,7 +428,7 @@ def create_api(services):
     def diagnostic_image(key):
         data = body()
         fields, _ = result_fields(key, data.get('result_id'))
-        kind = v.choice(data.get('kind', 'clipping'), '诊断图', ['clipping', 'zebra', 'peaking', 'valid', 'before_after'])
+        kind = v.choice(data.get('kind', 'clipping'), '诊断图', ['clipping', 'zebra', 'peaking', 'valid', 'before_after', 'detail_mask'])
         if kind == 'clipping':
             image = clipping_map(fields['image'])
         elif kind == 'zebra':
@@ -437,6 +437,11 @@ def create_api(services):
             image = focus_peaking(fields['image'])
         elif kind == 'valid':
             image = composite_valid(fields['image'], fields['valid'])
+        elif kind == 'detail_mask':
+            from .denoise import detail_overlay
+            if 'detail_mask' not in fields:
+                raise v.Invalid('细节保留遮罩仅在多帧降噪结果中可用，请先以多帧降噪模式重新合成')
+            image = detail_overlay(fields['before_finishing'], fields['detail_mask'])
         else:
             image = split_view(fields['before_finishing'], fields['image'], v.number(data.get('fraction', .5), '分屏位置', 0, 1))
         return image_response(image)
