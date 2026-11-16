@@ -585,6 +585,34 @@ def create_api(services):
         radius = v.integer(data.get('radius', 2), '采样半径', 0, 32)
         return jsonify(pixel_trace(prepare(store.get(key), assets), point, radius))
 
+    @api.post('/projects/<key>/pixel-explain')
+    def explain_pixel(key):
+        from .explain import explain_pixel as calculate
+        data = body()
+        result_id = data.get('result_id')
+        point = v.vector(data.get('point', [.5, .5]), '归一化采样位置', 2, 0, 1)
+        meta = results.metadata(key, result_id)
+        x = min(meta['width'] - 1, max(0, round(point[0] * (meta['width'] - 1))))
+        y = min(meta['height'] - 1, max(0, round(point[1] * (meta['height'] - 1))))
+        return jsonify(calculate(results, key, result_id, [x, y], v.integer(data.get('radius', 0), '采样半径', 0, 8)))
+
+    @api.get('/projects/<key>/explain-frame/<frame_id>')
+    def explain_frame(key, frame_id):
+        from .explain import frame_preview, mark_point
+        result_id = request.args.get('result_id')
+        image, _, _ = frame_preview(results, key, result_id, frame_id)
+        if request.args.get('marked') == 'true':
+            meta = results.metadata(key, result_id)
+            point = v.vector([float(item) for item in request.args.get('point', '.5,.5').split(',')], '标记位置', 2, 0, 1)
+            from .explain import inverse_geometry
+            snapshot = meta['project']
+            dx = min(meta['width'] - 1, max(0, round(point[0] * (meta['width'] - 1))))
+            dy = min(meta['height'] - 1, max(0, round(point[1] * (meta['height'] - 1))))
+            mapped = inverse_geometry(meta, snapshot, dx, dy)
+            if mapped is not None and 0 <= mapped[0] < image.shape[1] and 0 <= mapped[1] < image.shape[0]:
+                image = mark_point(image, mapped[0], mapped[1])
+        return image_response(image)
+
     @api.post('/projects/<key>/calibrate-response')
     def calibrate_response(key):
         from .response import estimate_response
