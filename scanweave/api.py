@@ -638,6 +638,32 @@ def create_api(services):
         fields, meta = result_fields(key, request.args.get('result_id'))
         return Response(html_report(store.get(key), fields, meta), mimetype='text/html')
 
+    @api.post('/projects/<key>/review')
+    def region_review(key):
+        from .review import review
+        return jsonify(review(store, assets, results, key, body()))
+
+    @api.post('/projects/<key>/review/report')
+    def region_review_report(key):
+        from .review import review, html_report
+        payload = review(store, assets, results, key, body(), include_settings=True)
+        return download(html_report(payload).encode('utf8'), 'scanweave-region-review.html', 'text/html')
+
+    @api.get('/projects/<key>/review/results')
+    def region_review_results(key):
+        project = store.get(key)
+        entries = []
+        for item in results.list(key):
+            row = {field: item[field] for field in ['id', 'name', 'mode', 'source_revision', 'created_at', 'width', 'height', 'current', 'stale']}
+            try:
+                metadata = results.metadata(key, item['id'])
+                geometry = ((metadata.get('project') or {}).get('settings') or {}).get('geometry') or {}
+                row.update(frame_ids=metadata.get('frame_ids', []), crop=geometry.get('crop'), rotation=geometry.get('rotation'), readable=True)
+            except v.Invalid as error:
+                row.update(frame_ids=[], crop=None, rotation=None, readable=False, error=str(error))
+            entries.append(row)
+        return jsonify({'results': entries, 'current_result': project.get('current_result')})
+
     @api.get('/projects/<key>/proofbook.pdf')
     def proofbook(key):
         from .reports import pdf_proofbook
