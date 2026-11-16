@@ -272,7 +272,49 @@ def create_api(services):
 
     @api.post('/jobs/<job_id>/apply-alignment')
     def apply_alignment(job_id):
-        return jsonify(jobs.apply_alignment(job_id, v.revision(body())))
+        data = body()
+        result = jobs.apply_alignment(job_id, v.revision(data), data.get('frame_ids'))
+        return jsonify({'project': result['project'], 'applied_frame_ids': result['applied_frame_ids'], 'skipped_frame_ids': result['skipped_frame_ids']})
+
+    @api.get('/jobs/<job_id>/review/<frame_id>')
+    def alignment_review(job_id, frame_id):
+        from .geometry import pixel_matrix, warp
+        job = jobs.get(job_id)
+        if job['status'] != 'completed' or job['kind'] != 'align':
+            raise v.Invalid('请选择已完成配准任务')
+        if job.get('stale'):
+            raise v.Conflict(job.get('stale_reason') or '配准结果已过期，请重新计算')
+        entry = next((item for item in job['details']['frames'] if item['frame_id'] == frame_id), None)
+        if entry is None:
+            raise v.Invalid('该帧不属于此配准任务')
+        project = store.get(job['project_id'])
+        frame = model.find_frame(project, frame_id)
+        prepared = prepare(project, assets, False)
+        width, height = job['details']['size']
+        ref_index = prepared['reference_index']
+        index = next((i for i, f in enumerate(prepared['frames']) if f['id'] == frame_id), None)
+        if index is None:
+            raise v.Invalid('帧未启用或已移除，请重新配准')
+        reference = prepared['images'][ref_index]
+        moving = prepared['images'][index]
+        # 失败帧若仍有候选矩阵则展示候选错位（不会被接受），否则展示当前变换。
+        if entry['status'] == 'failed' and entry['matrix'] is not None:
+            aligned = warp(moving, pixel_matrix(entry['matrix'], width, height), (width, height))
+        elif entry['matrix'] is None:
+            aligned = warp(moving, pixel_matrix(frame['matrix'], width, height), (width, height))
+        else:
+            aligned = warp(moving, pixel_matrix(entry['matrix'], width, height), (width, height))
+        kind = v.choice(request.args.get('kind', 'overlay'), '审阅预览',
+                        ['overlay', 'difference', 'split', 'checker'])
+        if kind == 'difference':
+            image = difference_image(reference, aligned)
+        elif kind == 'split':
+            image = split_view(reference, aligned, .5)
+        elif kind == 'checker':
+            image = checker_compare(reference, aligned)
+        else:
+            image = registration_overlay(reference, aligned)
+        return image_response(image)
 
     @api.post('/jobs/<job_id>/cancel')
     def cancel_job(job_id):
