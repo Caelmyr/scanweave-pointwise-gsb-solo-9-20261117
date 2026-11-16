@@ -6,6 +6,7 @@ from .workflows import get_workflow, run_workflow
 from .flow import refine
 from .finishing import finish_image
 from .local_adjustments import apply_all
+from .negative import apply_to_prepared
 from .arrays import srgb_decode, composite_valid
 from .geometry import largest_rectangle, crop_arrays, finish_geometry, overlap_metrics
 
@@ -17,6 +18,11 @@ def process(project, assets, progress=None, cancelled=None):
     mode = project['settings']['mode']
     workflow = get_workflow(mode)
     prepared = prepare(project, assets, workflow.prepare_aligned, progress, cancelled)
+    negative_report = None
+    if project['settings']['negative'].get('enabled'):
+        if progress:
+            progress(.32, '负片片基校正与反转')
+        prepared, negative_report = apply_to_prepared(prepared, project, assets)
     stages['prepare'] = time.monotonic() - stage_started
     if not any(np.any(valid > .001) for valid in prepared['validities']):
         from .validation import Invalid
@@ -63,6 +69,8 @@ def process(project, assets, progress=None, cancelled=None):
     report['timing_scope'] = '当前流程的实际墙钟耗时，可能包含进度回调IO；不代表独占CPU时间或峰值内存。'
     report['local_flow'] = prepared.get('flow_report', [])
     report.update(seconds=time.monotonic() - started, overlap=overlap_metrics(prepared['validities']), common_crop=crop, manual_crop=manual_crop, frame_count=len(prepared['frames']), calibration=prepared['calibration'])
+    if negative_report is not None:
+        report['negative_inversion'] = negative_report
     if progress:
         progress(.85, '合成完成，准备保存')
     return {'fields': fields, 'report': report, 'signature': model.signature(project), 'frame_ids': [f['id'] for f in prepared['frames']]}

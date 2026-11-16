@@ -749,4 +749,27 @@ def create_api(services):
     def workflow_catalog():
         return jsonify(public_workflows())
 
+    @api.post('/projects/<key>/negative-measure')
+    def negative_measure(key):
+        from .negative import negative_settings, measure_base, source_frame
+        project = store.get(key)
+        data = body()
+        candidate = negative_settings({**project['settings']['negative'], **v.object_value(data.get('negative', {}), '负片反转设置')})
+        frame_id = candidate['source_frame'] or project['reference']
+        if frame_id is None:
+            raise v.Invalid('请先指定参考帧，再框选片基区域')
+        frame = model.find_frame(project, frame_id)
+        report = measure_base(assets.field(frame['asset']), candidate['roi'])
+        report['source_frame'] = frame_id
+        report['source_name'] = frame['name']
+        return jsonify(report)
+
+    @api.post('/projects/<key>/negative-preview')
+    def negative_preview(key):
+        from .negative import preview_image
+        project = store.get(key)
+        data = body()
+        image, _ = preview_image(project, assets, data.get('roi'), data.get('negative'))
+        return image_response(image)
+
     return api

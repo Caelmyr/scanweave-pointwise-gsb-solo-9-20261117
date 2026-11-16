@@ -79,6 +79,9 @@ def validate(project):
             v.sha(f['mask'])
     if project.get('reference') is not None and project['reference'] not in ids:
         raise v.Invalid('参考帧不存在')
+    negative_source = project['settings'].get('negative', {}).get('source_frame')
+    if negative_source is not None and negative_source not in ids:
+        raise v.Invalid('负片反转的片基参考帧不存在，请重新指定')
     project['settings'] = all_settings(project.get('settings'))
     if project['settings']['size'] ** 2 * max(len(ids), 1) > 16000000:
         raise v.Invalid('超过1600万帧像素预算，请降低长边或减少照片')

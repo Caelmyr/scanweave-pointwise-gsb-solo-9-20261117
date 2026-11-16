@@ -59,6 +59,9 @@ class Frames:
             project['frames'] = [f for f in project['frames'] if f['id'] not in ids]
             if project['reference'] in ids:
                 project['reference'] = project['frames'][0]['id'] if project['frames'] else None
+            negative = project['settings'].get('negative', {})
+            if negative.get('source_frame') in ids:
+                negative['source_frame'] = project['reference']
         return self.store.get(key)
 
     def reset_transforms(self, key, revision):

@@ -7,6 +7,7 @@ from .trails import settings as trails_settings
 from .drizzle import settings as drizzle_settings
 from .local_adjustments import adjustment_spec
 from .workflows import workflows, get_workflow
+from .negative import negative_settings
 
 
 def finishing(body):
@@ -87,7 +88,7 @@ def geometry(body):
 
 def all_settings(body):
     body = v.object_value(body, '工程设置')
-    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local'}
+    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local', 'negative'}
     extensions = [item for item in workflows() if not item.builtin]
     allowed.update(item.settings_section for item in extensions)
     if set(body) - allowed:
@@ -110,6 +111,7 @@ def all_settings(body):
         'calibration': calibration(body.get('calibration', {})),
         'panorama': panorama(body.get('panorama', {})),
         'geometry': geometry(body.get('geometry', {})),
+        'negative': negative_settings(body.get('negative', {})),
     }
     for workflow in extensions:
         section = workflow.settings_section
