@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 data/
 .venv/
+
+.test-data/
+
+tests/ui/node_modules/

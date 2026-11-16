@@ -3,6 +3,7 @@ from . import model
 from .arrays import fit_size, letterbox, resize
 from .geometry import pixel_matrix, warp
 from .calibration import apply_calibration
+from .colorplans import apply_to_image
 from .validation import Invalid
 from .lens import correct
 
@@ -22,6 +23,9 @@ def prepare(project, assets, aligned=True, progress=None, cancelled=None):
             raise InterruptedError('在照片准备阶段取消')
         image = assets.field(frame['asset'])
         image, report = apply_calibration(image, project['settings']['calibration'], assets.field)
+        image, color_report = apply_to_image(image, project['settings'])
+        if color_report:
+            report['color_plan'] = color_report
         image, lens_valid = correct(image, project['settings']['lens'])
         image, validity = letterbox(image, width, height)
         lens_valid, _ = letterbox(lens_valid, width, height)

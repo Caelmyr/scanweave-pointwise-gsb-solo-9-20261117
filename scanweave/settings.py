@@ -7,6 +7,11 @@ from .trails import settings as trails_settings
 from .drizzle import settings as drizzle_settings
 from .local_adjustments import adjustment_spec
 from .workflows import workflows, get_workflow
+from .colorplans import color_plans
+
+
+def color_plans_settings(value):
+    return color_plans(value)
 
 
 def finishing(body):
@@ -87,7 +92,7 @@ def geometry(body):
 
 def all_settings(body):
     body = v.object_value(body, '工程设置')
-    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local'}
+    allowed = {'size', 'mode', 'alignment', 'fusion', 'hdr', 'focus', 'denoise', 'tone', 'finishing', 'calibration', 'panorama', 'geometry', 'lens', 'flow', 'trails', 'drizzle', 'local', 'color_plans'}
     extensions = [item for item in workflows() if not item.builtin]
     allowed.update(item.settings_section for item in extensions)
     if set(body) - allowed:
@@ -110,6 +115,7 @@ def all_settings(body):
         'calibration': calibration(body.get('calibration', {})),
         'panorama': panorama(body.get('panorama', {})),
         'geometry': geometry(body.get('geometry', {})),
+        'color_plans': color_plans_settings(body.get('color_plans', [])),
     }
     for workflow in extensions:
         section = workflow.settings_section

@@ -59,6 +59,7 @@ def create_api(services):
     jobs = services['jobs']
     profiles = services['profiles']
     regions = services['regions']
+    color_plans = services['color_plans']
 
     def result_fields(key, result_id=None):
         return results.fields(key, result_id, not bool(result_id))
@@ -614,6 +615,42 @@ def create_api(services):
         if data.get('output') == 'lut':
             return download(cube_lut(calibration), 'color-calibration.cube', 'text/plain')
         return jsonify(calibration)
+
+    @api.get('/projects/<key>/color-plans')
+    def color_plan_list(key):
+        project = store.get(key)
+        return jsonify([color_plans.public(plan) for plan in project['settings'].get('color_plans', [])])
+
+    @api.post('/projects/<key>/color-plans/analyze')
+    def color_plan_analyze(key):
+        return jsonify(color_plans.analyze(key, body()))
+
+    @api.post('/projects/<key>/color-plans/preview')
+    def color_plan_preview(key):
+        return image_response(color_plans.preview(key, body()))
+
+    @api.post('/projects/<key>/color-plans')
+    def color_plan_save(key):
+        data = body()
+        result = color_plans.save(key, v.revision(data), data)
+        return jsonify(result), 201
+
+    @api.post('/projects/<key>/color-plans/<plan_id>/apply')
+    def color_plan_apply(key, plan_id):
+        return jsonify(color_plans.set_applied(key, v.revision(body()), plan_id, True))
+
+    @api.post('/projects/<key>/color-plans/<plan_id>/disable')
+    def color_plan_disable(key, plan_id):
+        return jsonify(color_plans.set_applied(key, v.revision(body()), plan_id, False))
+
+    @api.post('/projects/<key>/color-plans/<plan_id>/remove')
+    def color_plan_remove(key, plan_id):
+        return jsonify(color_plans.remove(key, v.revision(body()), plan_id))
+
+    @api.get('/scanner/chart-palette')
+    def chart_palette():
+        from .scanner import CHART_PALETTE
+        return jsonify(CHART_PALETTE)
 
     @api.post('/projects/<key>/calibrate-camera')
     def camera_calibration(key):

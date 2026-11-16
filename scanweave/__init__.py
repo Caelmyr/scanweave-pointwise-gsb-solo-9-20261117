@@ -9,6 +9,7 @@ from .results import Results
 from .jobs import Jobs
 from .profiles import Profiles
 from .regions import Regions
+from .colorplans import ColorPlans
 from .api import create_api
 from .validation import Invalid, Conflict
 
@@ -23,6 +24,7 @@ def create_app(data_dir=None):
     results = Results(store, assets)
     services = {'store': store, 'assets': assets, 'frames': Frames(store, assets), 'masks': Masks(store, assets), 'results': results, 'jobs': Jobs(store, assets, results), 'profiles': Profiles(store)}
     services['regions'] = Regions(store, assets, results)
+    services['color_plans'] = ColorPlans(store, assets)
     app.extensions.update(services)
     app.register_blueprint(create_api(services))
 
